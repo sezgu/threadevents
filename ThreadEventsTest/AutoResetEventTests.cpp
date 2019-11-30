@@ -13,7 +13,7 @@ TEST(AutoResetEventTests, SingleThreadSet)
 
 	myEvent.set();
 
-	result = myEvent.wait(10ms);
+	result = myEvent.wait(10000ms);
 	ASSERT_TRUE(result);
 
 	result = myEvent.wait(10ms);
@@ -76,7 +76,7 @@ TEST(AutoResetEventTests, MultiThreadMultiSet)
 
 	auto firstThread = std::thread([myEvent, &firstThreadResult]()
 	{
-		if (myEvent.wait(std::chrono::duration<long, std::ratio<1, 1000>>{100}))
+		if (myEvent.wait(std::chrono::duration<long, std::ratio<1, 1000>>{10000}))
 		{
 			firstThreadResult = true;
 		}
@@ -85,9 +85,13 @@ TEST(AutoResetEventTests, MultiThreadMultiSet)
 	
 	auto secondThread = std::thread([myEvent, &secondThreadResult]()
 	{
-		if (myEvent.wait(100ms))
+		if (myEvent.wait(10000ms))
 		{
 			secondThreadResult = true;
+		}
+		else
+		{
+			std::cout << "Second thread timed out.\r\n";
 		}
 		std::cout << "Second thread exiting.\r\n";
 	});

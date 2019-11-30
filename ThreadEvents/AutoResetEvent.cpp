@@ -9,63 +9,35 @@ using namespace threading;
 
 struct AutoResetEvent::_EventData
 {
-	std::mutex m_signalMutex;
-	std::atomic<bool> m_signal;
-	std::condition_variable m_cv;
-
-	std::mutex m_waitMutex;
-	std::atomic<unsigned> m_waitCounter;
-	std::condition_variable m_waitCv;
-	void wait_for_count(unsigned count, std::unique_lock<std::mutex>& lock);
-	
+	bool Value{false};
+	int WaitCounter{0};
+	std::mutex Mutex{};
+	std::mutex SetMutex{};
+	std::condition_variable Signal{};
+	std::condition_variable WaitSignal{};
 };
-
-void AutoResetEvent::_EventData::wait_for_count(unsigned count, std::unique_lock<std::mutex>& lock)
-{
-	bool result = m_waitCounter == count;
-	while (!result)
-	{
-		m_waitCv.wait(lock);
-		result = m_waitCounter == count;
-	}
-}
-
 
 void AutoResetEvent::wait() const
 {
-	std::unique_lock<std::mutex> lock{ m_data->m_signalMutex };
-	m_data->m_waitCounter++;
+	std::unique_lock<std::mutex> lock{ m_data->Mutex };
 
-	bool result = m_data->m_signal.exchange(false);
-	while (!result)
-	{
-		m_data->m_cv.wait(lock); 
-		result = m_data->m_signal.exchange(false);
-	}
-	m_data->m_waitCounter--;
-	m_data->m_waitCv.notify_all();
+	++m_data->WaitCounter;
+	m_data->Signal.wait(lock, [&]() {return m_data->Value; });
+	m_data->Value = false;
+	--m_data->WaitCounter;
+	m_data->WaitSignal.notify_one();
 }
 
 bool AutoResetEvent::_wait(std::chrono::milliseconds duration) const
 {
-	std::unique_lock<std::mutex> lock{ m_data->m_signalMutex };
-	m_data->m_waitCounter++;
-
-	auto timeout = std::chrono::steady_clock::now() + duration;
-	bool result = m_data->m_signal.exchange(false);
-	while (!result)
-	{
-		if (m_data->m_cv.wait_until(lock, timeout) == std::cv_status::timeout)
-			break;
-		else
-		{
-			result = m_data->m_signal.exchange(false);
-		}
-	}
-	m_data->m_waitCounter--;
-	m_data->m_waitCv.notify_all();
-	return result;
+	std::unique_lock<std::mutex> lock{ m_data->Mutex };
 	
+	++m_data->WaitCounter;
+	auto result = m_data->Signal.wait_for(lock, duration, [&]() { return m_data->Value; });
+	m_data->Value = false;
+	--m_data->WaitCounter;
+	m_data->WaitSignal.notify_one();
+	return result;
 }
 
 bool AutoResetEvent::wait(unsigned milliseconds) const
@@ -75,24 +47,22 @@ bool AutoResetEvent::wait(unsigned milliseconds) const
 
 void AutoResetEvent::set()
 {
-	std::unique_lock<std::mutex> waitlock{ m_data->m_waitMutex };
-	std::unique_lock<std::mutex> lock{ m_data->m_signalMutex };
-	unsigned initial = m_data->m_waitCounter;
-	m_data->m_signal = true;
-	m_data->m_cv.notify_one();
+	std::lock_guard<std::mutex> set_lock{ m_data->SetMutex };
+	std::unique_lock<std::mutex> lock{ m_data->Mutex };
 
+	auto initial = m_data->WaitCounter;
+	m_data->Value = true;
+	m_data->Signal.notify_one();
 	if (initial > 0)
 	{
-		m_data->wait_for_count(initial - 1,lock);
+		m_data->WaitSignal.wait(lock, [&]() {return m_data->WaitCounter < initial; });
 	}
-	
 }
 
 AutoResetEvent::AutoResetEvent(bool initialState)
-	: m_data(std::make_shared<AutoResetEvent::_EventData>())
+	: m_data(std::make_shared<_EventData>())
 {
-	m_data->m_signal = initialState;
-	m_data->m_waitCounter = 0;
+	m_data->Value = initialState;
 }
 
 
