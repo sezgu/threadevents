@@ -27,6 +27,9 @@
     <ClInclude Include="..\include\ThreadEvents.h">
       <Filter>Header Files\Shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\Signal.h">
+      <Filter>Header Files\Shared</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AutoResetEvent.cpp">

@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "ThreadEvents.h"
-#include <atomic>
 #include <mutex>
 
 using namespace std::literals::chrono_literals;

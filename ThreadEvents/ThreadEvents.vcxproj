@@ -159,6 +159,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\Signal.h" />
     <ClInclude Include="..\include\ThreadEvents.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="targetver.h" />
